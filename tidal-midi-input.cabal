@@ -1,0 +1,21 @@
+name:                tidal-midi-input
+version:             0.0.1
+synopsis:            MIDI Input support for tidal
+-- description:
+homepage:            http://tidal.lurk.org/
+license:             MIT
+license-file:        LICENSE
+author:              Lennart Melzer
+maintainer:          Lennart Melzer <lennart@melzer.it>
+Stability:           Experimental
+Copyright:           (c) Lennart Melzer and other contributors, 2015
+category:            Sound
+build-type:          Simple
+cabal-version:       >=1.4
+
+Description: Initial MIDI Input support for Tidal, make CC Values available as Tidal Patterns. Currently this is using __unsafe__ IO operations
+
+library
+  Exposed-modules:  Sound.Tidal.MIDI.Input
+
+  Build-depends: base < 5, tidal, PortMidi, process, hashable, containers, hosc
