@@ -3,6 +3,8 @@ module Sound.Tidal.MIDI.Input where
 import qualified Sound.PortMidi as PM
 import Sound.Tidal.Pattern
 
+import Data.List
+
 import System.IO.Unsafe
 
 import Foreign.C
@@ -25,21 +27,22 @@ readCtrl dev = do
             let m = PM.message x
             return (Just (PM.data1 m, PM.data2 m))
 
-handleKey :: MVar (CLong) -> Maybe (CLong, CLong) -> IO ()
-handleKey knob1 v = do
+handleKeys :: [(MVar (CLong))] -> [Int] -> Maybe (CLong, CLong) -> IO ()
+handleKeys knobs ccs v = do
   case v of
     Nothing -> return ()
     Just (cc, val) -> do
-      case cc of
-        28 -> do
-          forkIO $ f knob1 val
+      case (elemIndex (fromIntegral cc) ccs) of
+        Just i -> do
+          let knob = (knobs!!i)
+          forkIO $ f knob val
 
           return ()
-            where f knob1 val = do
-                                  swapMVar knob1 val
+            where f knob val = do
+                                  swapMVar knob val                                   
                                   return ()
 
-        x -> putStrLn ("Received a MIDI CC Val of: " ++ show v)
+        Nothing -> putStrLn ("Received an unmapped MIDI CC: " ++ show v)
 
 readKnobM :: MVar (CLong) -> IO (Maybe CLong)
 readKnobM m = tryReadMVar m
@@ -55,23 +58,30 @@ knobPattern m = maybeListToPat [normMIDIRange <$> readKnob m]
 
 kr = knobPattern
 
+makeCCMVar :: Int -> IO (MVar (CLong))
+makeCCMVar _ = newMVar (0 :: CLong)
 
-inputproxy :: Int -> PM.DeviceID -> IO (MVar (CLong))
-inputproxy latency deviceID = do
+makeList :: (Int -> b) -> [Int] -> [b]
+makeList f (x:xs) = makeList f xs ++ [f x]
+makeList f [x] = [f x]
+makeList f [] = []
+
+inputproxy :: Int -> PM.DeviceID -> [Int] -> IO ([MVar (CLong)])
+inputproxy latency deviceID ccs = do
   PM.initialize
   do
     result <- PM.openInput deviceID
-    knob1 <- newMVar (0 :: CLong)
+    knobs <- sequence $ makeList (makeCCMVar) [1..(length ccs)]
     case result of
       Right err ->
         do
           putStrLn ("Failed opening Midi Input Port: " ++ show deviceID ++ " - " ++ show err)
-          return knob1
+          return knobs
       Left conn ->
         do
-          forkIO $ loop conn knob1
-          return knob1
-            where loop conn knob1 = do v <- readCtrl conn
-                                       handleKey knob1 v
+          forkIO $ loop conn knobs
+          return knobs
+            where loop conn knobs = do v <- readCtrl conn
+                                       handleKeys knobs ccs v
                                        threadDelay latency
-                                       loop conn knob1
+                                       loop conn knobs
