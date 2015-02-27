@@ -39,7 +39,7 @@ handleKeys knobs ccs v = do
 
           return ()
             where f knob val = do
-                                  swapMVar knob val                                   
+                                  swapMVar knob val
                                   return ()
 
         Nothing -> putStrLn ("Received an unmapped MIDI CC: " ++ show v)
@@ -50,12 +50,18 @@ readKnobM m = tryReadMVar m
 readKnob :: MVar (CLong) -> Maybe CLong
 readKnob m = unsafePerformIO $ readKnobM m
 
-normMIDIRange :: (Integral a, Floating b) => a -> b
+normMIDIRange :: (Integral a, Fractional b) => a -> b
 normMIDIRange a = (fromIntegral a) / 127
 
 knobPattern :: MVar (CLong) -> Pattern Double
 knobPattern m = maybeListToPat [normMIDIRange <$> readKnob m]
 
+knobValue :: MVar (CLong) -> Rational
+knobValue m = case normMIDIRange <$> readKnob m of
+                Just i -> toRational i
+                Nothing -> 0.0
+
+kv = knobValue
 kr = knobPattern
 
 makeCCMVar :: Int -> IO (MVar (CLong))
